@@ -96,6 +96,34 @@ defmodule TriviaWeb.GameChannelTest do
     end
   end
 
+  describe "handle_in:set_username" do
+    test "it replies with the username", %{socket: socket, game: game} do
+      {:ok, _reply, socket} = join(socket, "game:" <> game)
+      assert socket.assigns.username == "anonymous"
+
+      ref = push(socket, "set_username", %{"username" => "Matt"})
+      assert_reply ref, :ok, %{username: "Matt"}
+    end
+
+    test "the old user leaves and new joins", %{socket: socket, game: game} do
+      {:ok, _reply, socket} = join(socket, "game:" <> game)
+      assert_push "presence_diff", %{}
+
+      ref = push(socket, "set_username", %{"username" => "Matt"})
+      assert_reply ref, :ok, %{username: "Matt"}
+
+      # Need to explicitly retreive messages since we can't match on map Key
+      {:messages, messages} = :erlang.process_info(self(), :messages)
+
+      for %{event: event} = message when event == "presence_diff" <- messages do
+        %{leaves: leaves, joins: joins} = message.payload
+
+        assert %{metas: [%{username: "anonymous"}]} = leaves[socket.assigns.uuid]
+        assert %{metas: [%{username: "Matt"}]} = joins[socket.assigns.uuid]
+      end
+    end
+  end
+
   describe "handle_in:next" do
     test "replies with a new question if no next exists", %{socket: socket, game: game} do
       {:ok, _reply, socket} = join(socket, "game:" <> game)

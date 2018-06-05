@@ -23,6 +23,13 @@ defmodule TriviaWeb.GameChannel do
     join("game:" <> game, %{"username" => "anonymous"}, socket)
   end
 
+  def handle_in("set_username", %{"username" => username}, socket) do
+    socket = assign(socket, :username, username)
+    Presence.update(socket, socket.assigns.uuid, %{username: username})
+
+    {:reply, {:ok, %{username: username}}, socket}
+  end
+
   def handle_in("next", _params, %{assigns: %{game: game}} = socket) do
     socket = assign(socket, :question, socket.assigns.question + 1)
 
