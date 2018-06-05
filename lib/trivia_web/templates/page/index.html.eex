@@ -1,0 +1,27 @@
+<div id="entryForm">
+  <div class="card mx-auto w-50 rounded-0 shadow-lg p-3 mb-5 bg-white rounded">
+    <div class="card-body">
+      <h5 class="card-title">Welcome back, HQtie!</h5>
+      <p class="card-text">
+        Are you ready to get down to the nitty gritty?
+        Are you ready to get this show on the road?
+        Create a room, invite your friends, and win some cash together!
+      </p>
+      <%= form_for @conn, game_path(@conn, :create), fn f -> %>
+        <div class="mt-4 form-row align-items-center">
+          <div class="col-sm-9">
+            <%= text_input f, :name, class:  "form-control", placeholder: "Room Name"%>
+          </div>
+          <div class="col-sm-3">
+            <%= submit "Play", id: "submit", class: "btn w-100 text-white"%>
+          </div>
+          <%= if get_flash(@conn, :error) == "game already exists" do %>
+            <div class="col-sm-12">
+              <small id="error" class="pl-1 mt-2 form-text text-danger hidden">This room already exists. Join <%= link "here", to: game_path(@conn, :show, @conn.params["name"]) %>.</small>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
