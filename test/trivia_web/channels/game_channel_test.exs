@@ -24,11 +24,75 @@ defmodule TriviaWeb.GameChannelTest do
       assert socket.assigns.question == 1
     end
 
+    test "it sets a uuid on the socket", %{socket: socket, game: game} do
+      {:ok, _, socket} = join(socket, "game:" <> game)
+      assert socket.assigns.uuid
+    end
+
+    test "it sets the username on the socket from params", ctx do
+      {:ok, _, socket} = join(ctx.socket, "game:" <> ctx.game, %{"username" => "Matt"})
+      assert socket.assigns.username == "Matt"
+    end
+
+    test "it sets the username to 'anonymous' if not passed in", ctx do
+      {:ok, _, socket} = join(ctx.socket, "game:" <> ctx.game)
+      assert socket.assigns.username == "anonymous"
+    end
+
     test "it sends the first question and chat as a reply", ctx do
       {:ok, reply, _} = join(ctx.socket, "game:" <> ctx.game)
 
       assert reply.question == %Question{}
       assert reply.chat == %Chat{}
+    end
+
+    test "it pushes down a presence_state event showing other players", ctx do
+      {:ok, _, socket} = join(ctx.socket, "game:" <> ctx.game, %{"username" => "Matt"})
+      assert_push "presence_state", %{}
+
+      {:ok, _, _socket2} = join(ctx.socket, "game:" <> ctx.game, %{"username" => "Joe"})
+
+      # Need to explicitly retreive messages since we can't match on map Key
+      {:messages, messages} = :erlang.process_info(self(), :messages)
+
+      for %{event: event} = message when event == "presence_state" <- messages do
+        assert %{metas: [%{username: "Matt"}]} = message.payload[socket.assigns.uuid]
+      end
+    end
+
+    test "it pushes down a presence_diff event when someone else joins", ctx do
+      {:ok, _, _socket} = join(ctx.socket, "game:" <> ctx.game, %{"username" => "Matt"})
+      assert_push "presence_diff", %{}
+
+      {:ok, _, socket2} = join(ctx.socket, "game:" <> ctx.game, %{"username" => "Joe"})
+
+      # Need to explicitly retreive messages since we can't match on map Key
+      {:messages, messages} = :erlang.process_info(self(), :messages)
+
+      for %{event: event} = message when event == "presence_diff" <- messages do
+        %{joins: joins} = message.payload
+        assert %{metas: [%{username: "Joe"}]} = joins[socket2.assigns.uuid]
+      end
+    end
+
+    test "it pushes down a presence_diff event when someone else leaves", ctx do
+      {:ok, _, _socket} = join(ctx.socket, "game:" <> ctx.game, %{"username" => "Matt"})
+      assert_push "presence_diff", %{}
+
+      {:ok, _, socket2} = join(ctx.socket, "game:" <> ctx.game, %{"username" => "Joe"})
+      assert_push "presence_diff", %{}
+      assert_push "presence_diff", %{}
+
+      close(socket2)
+      assert_receive {:graceful_exit, _pid, _msg}
+
+      # Need to explicitly retreive messages since we can't match on map Key
+      {:messages, messages} = :erlang.process_info(self(), :messages)
+
+      for %{event: event} = message when event == "presence_diff" <- messages do
+        %{leaves: leaves} = message.payload
+        assert %{metas: [%{username: "Joe"}]} = leaves[socket2.assigns.uuid]
+      end
     end
   end
 

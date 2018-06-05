@@ -1,17 +1,26 @@
 defmodule TriviaWeb.GameChannel do
   use TriviaWeb, :channel
+  alias TriviaWeb.Presence
 
   intercept ["new_vote", "reset"]
 
-  def join("game:" <> game, _params, socket) do
+  def join("game:" <> game, %{"username" => username}, socket) do
     socket = socket
       |> assign(:game, game)
       |> assign(:question, 1)
+      |> assign(:uuid, UUID.uuid1())
+      |> assign(:username, username)
 
     chat = Trivia.chat(game)
     question = Trivia.question(game, 1)
 
+    send(self(), :track)
+
     {:ok, %{question: question, chat: chat}, socket}
+  end
+
+  def join("game:" <> game, _params, socket) do
+    join("game:" <> game, %{"username" => "anonymous"}, socket)
   end
 
   def handle_in("next", _params, %{assigns: %{game: game}} = socket) do
@@ -88,5 +97,12 @@ defmodule TriviaWeb.GameChannel do
       _number ->
         {:noreply, socket}
     end
+  end
+
+  def handle_info(:track, %{assigns: %{uuid: uuid, username: username}} = socket) do
+    push socket, "presence_state", Presence.list(socket)
+
+    {:ok, _} = Presence.track(socket, uuid, %{username: username})
+    {:noreply, socket}
   end
 end
